@@ -1,87 +1,133 @@
 'use strict';
 
 /**
- * @ngdoc function
- * @name angular.module.ng.$filter.limitTo
- * @function
+ * @ngdoc filter
+ * @name limitTo
+ * @kind function
  *
  * @description
- * Creates a new array containing only a specified number of elements in an array. The elements
- * are taken from either the beginning or the end of the source array, as specified by the
- * value and sign (positive or negative) of `limit`.
+ * Creates a new array or string containing only a specified number of elements. The elements are
+ * taken from either the beginning or the end of the source array, string or number, as specified by
+ * the value and sign (positive or negative) of `limit`. Other array-like objects are also supported
+ * (e.g. array subclasses, NodeLists, jqLite/jQuery collections etc). If a number is used as input,
+ * it is converted to a string.
  *
- * Note: This function is used to augment the `Array` type in Angular expressions. See
- * {@link angular.module.ng.$filter} for more information about Angular arrays.
- *
- * @param {Array} array Source array to be limited.
- * @param {string|Number} limit The length of the returned array. If the `limit` number is
- *     positive, `limit` number of items from the beginning of the source array are copied.
- *     If the number is negative, `limit` number  of items from the end of the source array are
- *     copied. The `limit` will be trimmed if it exceeds `array.length`
- * @returns {Array} A new sub-array of length `limit` or less if input array had less than `limit`
- *     elements.
+ * @param {Array|ArrayLike|string|number} input - Array/array-like, string or number to be limited.
+ * @param {string|number} limit - The length of the returned array or string. If the `limit` number
+ *     is positive, `limit` number of items from the beginning of the source array/string are copied.
+ *     If the number is negative, `limit` number  of items from the end of the source array/string
+ *     are copied. The `limit` will be trimmed if it exceeds `array.length`. If `limit` is undefined,
+ *     the input will be returned unchanged.
+ * @param {(string|number)=} begin - Index at which to begin limitation. As a negative index,
+ *     `begin` indicates an offset from the end of `input`. Defaults to `0`.
+ * @returns {Array|string} A new sub-array or substring of length `limit` or less if the input had
+ *     less than `limit` elements.
  *
  * @example
-   <doc:example>
-     <doc:source>
+   <example module="limitToExample" name="limit-to-filter">
+     <file name="index.html">
        <script>
-         function Ctrl($scope) {
-           $scope.numbers = [1,2,3,4,5,6,7,8,9];
-           $scope.limit = 3;
-         }
+         angular.module('limitToExample', [])
+           .controller('ExampleController', ['$scope', function($scope) {
+             $scope.numbers = [1,2,3,4,5,6,7,8,9];
+             $scope.letters = "abcdefghi";
+             $scope.longNumber = 2345432342;
+             $scope.numLimit = 3;
+             $scope.letterLimit = 3;
+             $scope.longNumberLimit = 3;
+           }]);
        </script>
-       <div ng-controller="Ctrl">
-         Limit {{numbers}} to: <input type="integer" ng-model="limit">
-         <p>Output: {{ numbers | limitTo:limit }}</p>
+       <div ng-controller="ExampleController">
+         <label>
+            Limit {{numbers}} to:
+            <input type="number" step="1" ng-model="numLimit">
+         </label>
+         <p>Output numbers: {{ numbers | limitTo:numLimit }}</p>
+         <label>
+            Limit {{letters}} to:
+            <input type="number" step="1" ng-model="letterLimit">
+         </label>
+         <p>Output letters: {{ letters | limitTo:letterLimit }}</p>
+         <label>
+            Limit {{longNumber}} to:
+            <input type="number" step="1" ng-model="longNumberLimit">
+         </label>
+         <p>Output long number: {{ longNumber | limitTo:longNumberLimit }}</p>
        </div>
-     </doc:source>
-     <doc:scenario>
-       it('should limit the numer array to first three items', function() {
-         expect(element('.doc-example-live input[ng-model=limit]').val()).toBe('3');
-         expect(binding('numbers | limitTo:limit')).toEqual('[1,2,3]');
+     </file>
+     <file name="protractor.js" type="protractor">
+       var numLimitInput = element(by.model('numLimit'));
+       var letterLimitInput = element(by.model('letterLimit'));
+       var longNumberLimitInput = element(by.model('longNumberLimit'));
+       var limitedNumbers = element(by.binding('numbers | limitTo:numLimit'));
+       var limitedLetters = element(by.binding('letters | limitTo:letterLimit'));
+       var limitedLongNumber = element(by.binding('longNumber | limitTo:longNumberLimit'));
+
+       it('should limit the number array to first three items', function() {
+         expect(numLimitInput.getAttribute('value')).toBe('3');
+         expect(letterLimitInput.getAttribute('value')).toBe('3');
+         expect(longNumberLimitInput.getAttribute('value')).toBe('3');
+         expect(limitedNumbers.getText()).toEqual('Output numbers: [1,2,3]');
+         expect(limitedLetters.getText()).toEqual('Output letters: abc');
+         expect(limitedLongNumber.getText()).toEqual('Output long number: 234');
        });
 
-       it('should update the output when -3 is entered', function() {
-         input('limit').enter(-3);
-         expect(binding('numbers | limitTo:limit')).toEqual('[7,8,9]');
-       });
+       // There is a bug in safari and protractor that doesn't like the minus key
+       // it('should update the output when -3 is entered', function() {
+       //   numLimitInput.clear();
+       //   numLimitInput.sendKeys('-3');
+       //   letterLimitInput.clear();
+       //   letterLimitInput.sendKeys('-3');
+       //   longNumberLimitInput.clear();
+       //   longNumberLimitInput.sendKeys('-3');
+       //   expect(limitedNumbers.getText()).toEqual('Output numbers: [7,8,9]');
+       //   expect(limitedLetters.getText()).toEqual('Output letters: ghi');
+       //   expect(limitedLongNumber.getText()).toEqual('Output long number: 342');
+       // });
 
        it('should not exceed the maximum size of input array', function() {
-         input('limit').enter(100);
-         expect(binding('numbers | limitTo:limit')).toEqual('[1,2,3,4,5,6,7,8,9]');
+         numLimitInput.clear();
+         numLimitInput.sendKeys('100');
+         letterLimitInput.clear();
+         letterLimitInput.sendKeys('100');
+         longNumberLimitInput.clear();
+         longNumberLimitInput.sendKeys('100');
+         expect(limitedNumbers.getText()).toEqual('Output numbers: [1,2,3,4,5,6,7,8,9]');
+         expect(limitedLetters.getText()).toEqual('Output letters: abcdefghi');
+         expect(limitedLongNumber.getText()).toEqual('Output long number: 2345432342');
        });
-     </doc:scenario>
-   </doc:example>
- */
-function limitToFilter(){
-  return function(array, limit) {
-    if (!(array instanceof Array)) return array;
-    limit = int(limit);
-    var out = [],
-      i, n;
-
-    // check that array is iterable
-    if (!array || !(array instanceof Array))
-      return out;
-
-    // if abs(limit) exceeds maximum length, trim it
-    if (limit > array.length)
-      limit = array.length;
-    else if (limit < -array.length)
-      limit = -array.length;
-
-    if (limit > 0) {
-      i = 0;
-      n = limit;
+     </file>
+   </example>
+*/
+function limitToFilter() {
+  return function(input, limit, begin) {
+    if (Math.abs(Number(limit)) === Infinity) {
+      limit = Number(limit);
     } else {
-      i = array.length + limit;
-      n = array.length;
+      limit = toInt(limit);
     }
+    if (isNumberNaN(limit)) return input;
 
-    for (; i<n; i++) {
-      out.push(array[i]);
+    if (isNumber(input)) input = input.toString();
+    if (!isArrayLike(input)) return input;
+
+    begin = (!begin || isNaN(begin)) ? 0 : toInt(begin);
+    begin = (begin < 0) ? Math.max(0, input.length + begin) : begin;
+
+    if (limit >= 0) {
+      return sliceFn(input, begin, begin + limit);
+    } else {
+      if (begin === 0) {
+        return sliceFn(input, limit, input.length);
+      } else {
+        return sliceFn(input, Math.max(0, begin + limit), begin);
+      }
     }
+  };
+}
 
-    return out;
-  }
+function sliceFn(input, begin, end) {
+  if (isString(input)) return input.slice(begin, end);
+
+  return slice.call(input, begin, end);
 }

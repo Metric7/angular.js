@@ -1,6 +1,5 @@
 'use strict';
 
-
 /**
  * Computes a hash of an 'obj'.
  * Hash of a:
@@ -13,89 +12,93 @@
  * @returns {string} hash string such that the same input will have the same hash string.
  *         The resulting string key is in 'type:hashKey' format.
  */
-function hashKey(obj) {
-  var objType = typeof obj,
-      key;
+function hashKey(obj, nextUidFn) {
+  var key = obj && obj.$$hashKey;
 
-  if (objType == 'object' && obj !== null) {
-    if (typeof (key = obj.$$hashKey) == 'function') {
-      // must invoke on object to keep the right this
+  if (key) {
+    if (typeof key === 'function') {
       key = obj.$$hashKey();
-    } else if (key === undefined) {
-      key = obj.$$hashKey = nextUid();
     }
+    return key;
+  }
+
+  var objType = typeof obj;
+  if (objType === 'function' || (objType === 'object' && obj !== null)) {
+    key = obj.$$hashKey = objType + ':' + (nextUidFn || nextUid)();
   } else {
-    key = obj;
+    key = objType + ':' + obj;
   }
 
-  return objType + ':' + key;
+  return key;
 }
 
-/**
- * HashMap which can use objects as keys
- */
-function HashMap(array){
-  forEach(array, this.put, this);
+// A minimal ES2015 Map implementation.
+// Should be bug/feature equivalent to the native implementations of supported browsers
+// (for the features required in Angular).
+// See https://kangax.github.io/compat-table/es6/#test-Map
+var nanKey = Object.create(null);
+function NgMapShim() {
+  this._keys = [];
+  this._values = [];
+  this._lastKey = NaN;
+  this._lastIndex = -1;
 }
-HashMap.prototype = {
-  /**
-   * Store key value pair
-   * @param key key to store can be any type
-   * @param value value to store can be any type
-   */
-  put: function(key, value) {
-    this[hashKey(key)] = value;
+NgMapShim.prototype = {
+  _idx: function(key) {
+    if (key !== this._lastKey) {
+      this._lastKey = key;
+      this._lastIndex = this._keys.indexOf(key);
+    }
+    return this._lastIndex;
   },
-
-  /**
-   * @param key
-   * @returns the value for the key
-   */
+  _transformKey: function(key) {
+    return isNumberNaN(key) ? nanKey : key;
+  },
   get: function(key) {
-    return this[hashKey(key)];
+    key = this._transformKey(key);
+    var idx = this._idx(key);
+    if (idx !== -1) {
+      return this._values[idx];
+    }
   },
+  has: function(key) {
+    key = this._transformKey(key);
+    var idx = this._idx(key);
+    return idx !== -1;
+  },
+  set: function(key, value) {
+    key = this._transformKey(key);
+    var idx = this._idx(key);
+    if (idx === -1) {
+      idx = this._lastIndex = this._keys.length;
+    }
+    this._keys[idx] = key;
+    this._values[idx] = value;
 
-  /**
-   * Remove the key/value pair
-   * @param key
-   */
-  remove: function(key) {
-    var value = this[key = hashKey(key)];
-    delete this[key];
-    return value;
+    // Support: IE11
+    // Do not `return this` to simulate the partial IE11 implementation
+  },
+  delete: function(key) {
+    key = this._transformKey(key);
+    var idx = this._idx(key);
+    if (idx === -1) {
+      return false;
+    }
+    this._keys.splice(idx, 1);
+    this._values.splice(idx, 1);
+    this._lastKey = NaN;
+    this._lastIndex = -1;
+    return true;
   }
 };
 
-/**
- * A map where multiple values can be added to the same key such that they form a queue.
- * @returns {HashQueueMap}
- */
-function HashQueueMap() {}
-HashQueueMap.prototype = {
-  /**
-   * Same as array push, but using an array as the value for the hash
-   */
-  push: function(key, value) {
-    var array = this[key = hashKey(key)];
-    if (!array) {
-      this[key] = [value];
-    } else {
-      array.push(value);
-    }
-  },
+// For now, always use `NgMapShim`, even if `window.Map` is available. Some native implementations
+// are still buggy (often in subtle ways) and can cause hard-to-debug failures. When native `Map`
+// implementations get more stable, we can reconsider switching to `window.Map` (when available).
+var NgMap = NgMapShim;
 
-  /**
-   * Same as array shift, but using an array as the value for the hash
-   */
-  shift: function(key) {
-    var array = this[key = hashKey(key)];
-    if (array) {
-      if (array.length == 1) {
-        delete this[key];
-        return array[0];
-      } else {
-        return array.shift();
-      }
-    }
-  }
-};
+var $$MapProvider = [/** @this */function() {
+  this.$get = [function() {
+    return NgMap;
+  }];
+}];
